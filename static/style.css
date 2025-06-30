@@ -1,0 +1,87 @@
+body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+    height: 100vh;
+    overflow-y: auto;
+    padding-bottom: 60px;
+}
+
+.banner {
+    background-color: #232f3e;
+    color: white;
+    text-align: center;
+    padding: 20px;
+    margin: 0;
+}
+
+.navbar {
+    background-color: #f0f0f0;
+    padding: 10px;
+    text-align: center;
+}
+
+.navbar a {
+    margin: 0 20px;
+    text-decoration: none;
+    color: #333;
+    font-weight: bold;
+}
+
+.navbar a.active {
+    color: #ff9900;
+}
+
+.code-input-section {
+    padding: 20px;
+    background-color: #f9f9f9;
+    border-bottom: 2px solid #ddd;
+}
+
+.content {
+    padding: 20px;
+    min-height: 300px;
+}
+
+textarea {
+    width: 100%;
+    max-width: 600px;
+    margin: 10px 0;
+}
+
+button {
+    background-color: #ff9900;
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    cursor: pointer;
+}
+
+.code-display {
+    margin-top: 20px;
+    padding: 15px;
+    background-color: #f5f5f5;
+    border: 1px solid #ddd;
+}
+
+.code-output {
+    background-color: white;
+    padding: 10px;
+    border: 1px solid #ccc;
+    white-space: pre-wrap;
+    min-height: 500px;
+    height: auto;
+    overflow-y: auto;
+}
+
+.footer {
+    background-color: #232f3e;
+    color: white;
+    padding: 30px;
+    display: flex;
+    justify-content: space-between;
+    position: fixed;
+    bottom: 0;
+    width: 100%;
+    box-sizing: border-box;
+    height: 30px;
+}
