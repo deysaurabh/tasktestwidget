@@ -9,7 +9,7 @@ run:
   pre-run:
     - pip3 install pipenv
     - pipenv install
-  command: python3 app.py
+  command: python app.py
   network:
     port: 5000
     env: PORT
