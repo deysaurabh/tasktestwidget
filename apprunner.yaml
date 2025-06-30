@@ -1,8 +1,8 @@
 version: 1.0
 runtime: python311
-pre-run:
-  - pip3 install pipenv
-  - pipenv install
+env:
+  - name: PORT
+    value: 5000
 build:
   commands:
     build:
