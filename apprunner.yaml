@@ -1,8 +1,5 @@
 version: 1.0
 runtime: python311
-env:
-  - name: PORT
-    value: 5000
 build:
   commands:
     build:
