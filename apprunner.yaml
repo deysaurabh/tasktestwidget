@@ -1,7 +1,6 @@
 version: 1
 runtime: python311
 build:
-  runtime-version: "3.11"
   commands:
     - pip3 install -r requirements.txt
     - python3 -m pip install gunicorn
