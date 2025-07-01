@@ -6,9 +6,6 @@ build:
     - python3 -m pip install gunicorn
     - python3 -m pip install Flask
 run:
-  command: gunicorn --bind 0.0.0.0:8080 app:create_app() # Replace app:app with your app entry point
+  command: gunicorn --bind 0.0.0.0:8080 app:create_app()
   network:
     port: 8080
-  env:
-    - name: PYTHONUNBUFFERED
-      value: "TRUE"
