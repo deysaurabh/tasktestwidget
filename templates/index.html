@@ -7,10 +7,78 @@
 <body>
     <div class="code-input-section">
         <h2>Enter Code Snippet</h2>
+        
+        {% if not code_snippet %}
+        <!-- Initial code input form -->
         <form method="POST">
-            <textarea name="code" placeholder="Enter your code snippet here..." rows="10" cols="80">{{ code_snippet }}</textarea><br>
-            <button type="submit">Submit Code</button>
+            <input type="hidden" name="action" value="analyze_code">
+            <textarea name="code" placeholder="Enter your code snippet here... Use {{dropdown}}, [dropdown], or <select> tags for dropdowns" rows="10" cols="80"></textarea><br>
+            <button type="submit">Analyze Code</button>
         </form>
+        
+        {% elif show_options_form %}
+        <!-- Dropdown options configuration -->
+        <div class="dropdown-config-section">
+            {% if dropdown_detected_message %}
+            <div class="detection-message">{{ dropdown_detected_message }}</div>
+            {% endif %}
+            <h3>Dropdown Detected!</h3>
+            <p>Your code contains dropdown elements. You can configure the options below or skip this step.</p>
+            
+            <div class="current-options">
+                <h4>Current Options:</h4>
+                {% if dropdown_options %}
+                <ul class="options-list">
+                    {% for option in dropdown_options %}
+                    <li>
+                        {{ option }}
+                        <form method="POST" style="display: inline;">
+                            <input type="hidden" name="action" value="remove_option">
+                            <input type="hidden" name="option_to_remove" value="{{ option }}">
+                            <button type="submit" class="remove-btn">Remove</button>
+                        </form>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <p class="no-options">No options added yet.</p>
+                {% endif %}
+            </div>
+            
+            <div class="add-option-form">
+                <h4>Add New Option:</h4>
+                <form method="POST">
+                    <input type="hidden" name="action" value="add_option">
+                    <input type="text" name="new_option" placeholder="Enter option text" required>
+                    <button type="submit">Add Option</button>
+                </form>
+            </div>
+            
+            <div class="action-buttons">
+                <form method="POST" style="display: inline;">
+                    <input type="hidden" name="action" value="submit_options">
+                    <button type="submit" class="submit-btn">Submit Options & Render</button>
+                </form>
+                
+                <form method="POST" style="display: inline;">
+                    <input type="hidden" name="action" value="skip_options">
+                    <button type="submit" class="skip-btn">Skip & Render As-Is</button>
+                </form>
+            </div>
+        </div>
+        
+        {% else %}
+        <!-- Show code for reference -->
+        <div class="code-reference">
+            <h3>Code Snippet:</h3>
+            <div class="code-preview">{{ code_snippet }}</div>
+            <form method="POST">
+                <input type="hidden" name="action" value="analyze_code">
+                <input type="hidden" name="code" value="{{ code_snippet }}">
+                <button type="submit">Re-analyze</button>
+            </form>
+        </div>
+        {% endif %}
     </div>
     
     <header class="banner">
@@ -24,10 +92,10 @@
     </nav>
     
     <main class="content">
-        {% if code_snippet %}
+        {% if rendered_code %}
         <div class="code-display">
-            <h3>Rendered Code:</h3>
-            <div class="code-output">{{ code_snippet|safe }}</div>
+            <h3>Final Rendered Code:</h3>
+            <div class="code-output">{{ rendered_code|safe }}</div>
         </div>
         {% endif %}
     </main>
