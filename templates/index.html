@@ -10,8 +10,7 @@
         
         {% if not code_snippet %}
         <!-- Initial code input form -->
-        <form method="POST">
-            <input type="hidden" name="action" value="analyze_code">
+        <form method="POST" action="{{ url_for('analyze_code') }}">
             <textarea name="code" placeholder="Enter your code snippet here... Use {{dropdown}}, [dropdown], or <select> tags for dropdowns" rows="10" cols="80"></textarea><br>
             <button type="submit">Analyze Code</button>
         </form>
@@ -32,7 +31,7 @@
                     {% for option in dropdown_options %}
                     <li>
                         {{ option }}
-                        <form method="POST" style="display: inline;">
+                        <form method="POST" action="{{ url_for('configure_options', snippet_id=snippet_id) }}" style="display: inline;">
                             <input type="hidden" name="action" value="remove_option">
                             <input type="hidden" name="option_to_remove" value="{{ option }}">
                             <button type="submit" class="remove-btn">Remove</button>
@@ -47,7 +46,7 @@
             
             <div class="add-option-form">
                 <h4>Add New Option:</h4>
-                <form method="POST">
+                <form method="POST" action="{{ url_for('configure_options', snippet_id=snippet_id) }}">
                     <input type="hidden" name="action" value="add_option">
                     <input type="text" name="new_option" placeholder="Enter option text" required>
                     <button type="submit">Add Option</button>
@@ -55,12 +54,12 @@
             </div>
             
             <div class="action-buttons">
-                <form method="POST" style="display: inline;">
+                <form method="POST" action="{{ url_for('configure_options', snippet_id=snippet_id) }}" style="display: inline;">
                     <input type="hidden" name="action" value="submit_options">
                     <button type="submit" class="submit-btn">Submit Options & Render</button>
                 </form>
                 
-                <form method="POST" style="display: inline;">
+                <form method="POST" action="{{ url_for('configure_options', snippet_id=snippet_id) }}" style="display: inline;">
                     <input type="hidden" name="action" value="skip_options">
                     <button type="submit" class="skip-btn">Skip & Render As-Is</button>
                 </form>
@@ -72,8 +71,7 @@
         <div class="code-reference">
             <h3>Code Snippet:</h3>
             <div class="code-preview">{{ code_snippet }}</div>
-            <form method="POST">
-                <input type="hidden" name="action" value="analyze_code">
+            <form method="POST" action="{{ url_for('analyze_code') }}">
                 <input type="hidden" name="code" value="{{ code_snippet }}">
                 <button type="submit">Re-analyze</button>
             </form>

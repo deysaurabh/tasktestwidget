@@ -1,11 +1,57 @@
-from flask import Flask, render_template, request, session
+from flask import Flask, render_template, request, session, redirect, url_for
 from datetime import datetime
 import re
 import json
+import sqlite3
+import os
+import uuid
 
 
 app = Flask(__name__)
 app.secret_key = 'your-secret-key-here'  # Change this in production
+
+# Database setup
+DATABASE_PATH = 'snippets.db'
+
+def get_db_connection():
+    """Get a connection to the SQLite database"""
+    # Use the app config if available, otherwise use the global variable
+    db_path = app.config.get('DATABASE_PATH', DATABASE_PATH)
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+def init_db():
+    """Initialize the database with required tables"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    # Create snippets table
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS snippets (
+        id TEXT PRIMARY KEY,
+        original_code TEXT NOT NULL,
+        rendered_code TEXT,
+        has_dropdowns BOOLEAN NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    ''')
+    
+    # Create dropdown_options table
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS dropdown_options (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        snippet_id TEXT NOT NULL,
+        option_text TEXT NOT NULL,
+        FOREIGN KEY (snippet_id) REFERENCES snippets (id)
+    )
+    ''')
+    
+    conn.commit()
+    conn.close()
+
+# Initialize the database
+init_db()
 
 def detect_dropdowns(code_snippet):
     """Detect dropdown placeholders in code snippet"""
@@ -132,95 +178,175 @@ def create_options_html(options):
     """Create HTML option elements"""
     return ''.join([f'<option value="{opt}">{opt}</option>' for opt in options])
 
-@app.route('/', methods=['GET', 'POST'])
+def save_snippet(code_snippet, has_dropdowns=False, rendered_code=None):
+    """Save a code snippet to the database and return its ID"""
+    snippet_id = str(uuid.uuid4())
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    cursor.execute(
+        'INSERT INTO snippets (id, original_code, rendered_code, has_dropdowns) VALUES (?, ?, ?, ?)',
+        (snippet_id, code_snippet, rendered_code, has_dropdowns)
+    )
+    
+    conn.commit()
+    conn.close()
+    
+    return snippet_id
+
+def get_snippet(snippet_id):
+    """Get a snippet from the database by ID"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    cursor.execute('SELECT * FROM snippets WHERE id = ?', (snippet_id,))
+    snippet = cursor.fetchone()
+    
+    if snippet:
+        # Get dropdown options if any
+        cursor.execute('SELECT option_text FROM dropdown_options WHERE snippet_id = ?', (snippet_id,))
+        options = [row['option_text'] for row in cursor.fetchall()]
+    else:
+        options = []
+    
+    conn.close()
+    
+    return snippet, options
+
+def save_dropdown_option(snippet_id, option_text):
+    """Save a dropdown option for a snippet"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    cursor.execute(
+        'INSERT INTO dropdown_options (snippet_id, option_text) VALUES (?, ?)',
+        (snippet_id, option_text)
+    )
+    
+    conn.commit()
+    conn.close()
+
+def remove_dropdown_option(snippet_id, option_text):
+    """Remove a dropdown option for a snippet"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    cursor.execute(
+        'DELETE FROM dropdown_options WHERE snippet_id = ? AND option_text = ?',
+        (snippet_id, option_text)
+    )
+    
+    conn.commit()
+    conn.close()
+
+def get_dropdown_options(snippet_id):
+    """Get all dropdown options for a snippet"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    cursor.execute('SELECT option_text FROM dropdown_options WHERE snippet_id = ?', (snippet_id,))
+    options = [row['option_text'] for row in cursor.fetchall()]
+    
+    conn.close()
+    
+    return options
+
+def update_rendered_code(snippet_id, rendered_code):
+    """Update the rendered code for a snippet"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    cursor.execute(
+        'UPDATE snippets SET rendered_code = ? WHERE id = ?',
+        (rendered_code, snippet_id)
+    )
+    
+    conn.commit()
+    conn.close()
+
+@app.route('/', methods=['GET'])
 def index():
+    """Show the initial form"""
+    return render_template('index.html', current_date=datetime.now().strftime('%Y-%m-%d'))
+
+@app.route('/analyze', methods=['POST'])
+def analyze_code():
+    """Analyze a code snippet for dropdowns"""
+    code_snippet = request.form.get('code', '')
+    
+    has_dropdowns = detect_dropdowns(code_snippet)
+    
+    # Save the snippet to the database
+    snippet_id = save_snippet(code_snippet, has_dropdowns)
+    
+    if has_dropdowns:
+        print("Dropdown detected")  # Output to console as requested
+        return redirect(url_for('configure_options', snippet_id=snippet_id))
+    else:
+        # No dropdowns detected, render directly
+        return redirect(url_for('view_snippet', snippet_id=snippet_id))
+
+@app.route('/snippet/<snippet_id>', methods=['GET'])
+def view_snippet(snippet_id):
+    """View a snippet"""
+    snippet, options = get_snippet(snippet_id)
+    
+    if not snippet:
+        return "Snippet not found", 404
+    
+    return render_template('index.html',
+                         snippet_id=snippet_id,
+                         code_snippet=snippet['original_code'],
+                         rendered_code=snippet['rendered_code'] or snippet['original_code'],
+                         current_date=datetime.now().strftime('%Y-%m-%d'))
+
+@app.route('/snippet/<snippet_id>/options', methods=['GET', 'POST'])
+def configure_options(snippet_id):
+    """Configure dropdown options for a snippet"""
+    snippet, options = get_snippet(snippet_id)
+    
+    if not snippet:
+        return "Snippet not found", 404
+    
     if request.method == 'POST':
         action = request.form.get('action', '')
         
-        if action == 'analyze_code':
-            code_snippet = request.form.get('code', '')
-            session['code_snippet'] = code_snippet
-            
-            if detect_dropdowns(code_snippet):
-                print("Dropdown detected")  # Output to console as requested
-                session['has_dropdowns'] = True
-                session['dropdown_options'] = []
-                return render_template('index.html', 
-                                     code_snippet=code_snippet,
-                                     has_dropdowns=True,
-                                     show_options_form=True,
-                                     dropdown_options=[],
-                                     dropdown_detected_message="Dropdown detected",
-                                     current_date=datetime.now().strftime('%Y-%m-%d'))
-            else:
-                # No dropdowns detected, render directly
-                session['has_dropdowns'] = False
-                return render_template('index.html',
-                                     code_snippet=code_snippet,
-                                     rendered_code=code_snippet,
-                                     current_date=datetime.now().strftime('%Y-%m-%d'))
-        
-        elif action == 'add_option':
+        if action == 'add_option':
             new_option = request.form.get('new_option', '').strip()
-            if new_option:
-                options = session.get('dropdown_options', [])
-                if new_option not in options:
-                    options.append(new_option)
-                    session['dropdown_options'] = options
-            
-            return render_template('index.html',
-                                 code_snippet=session.get('code_snippet', ''),
-                                 has_dropdowns=True,
-                                 show_options_form=True,
-                                 dropdown_options=session.get('dropdown_options', []),
-                                 current_date=datetime.now().strftime('%Y-%m-%d'))
+            if new_option and new_option not in options:
+                save_dropdown_option(snippet_id, new_option)
+                options.append(new_option)
         
         elif action == 'remove_option':
             option_to_remove = request.form.get('option_to_remove', '')
-            options = session.get('dropdown_options', [])
             if option_to_remove in options:
+                remove_dropdown_option(snippet_id, option_to_remove)
                 options.remove(option_to_remove)
-                session['dropdown_options'] = options
-            
-            return render_template('index.html',
-                                 code_snippet=session.get('code_snippet', ''),
-                                 has_dropdowns=True,
-                                 show_options_form=True,
-                                 dropdown_options=options,
-                                 current_date=datetime.now().strftime('%Y-%m-%d'))
         
         elif action == 'submit_options':
-            code_snippet = session.get('code_snippet', '')
-            options = session.get('dropdown_options', [])
+            # Get the latest options
+            options = get_dropdown_options(snippet_id)
             
             if options:
                 # Update the code snippet with the new options
-                updated_code = replace_dropdown_placeholder(code_snippet, options)
-                # Use the updated code as both the code snippet and rendered code
-                rendered_code = updated_code
-                # Update the session with the new code snippet
-                session['code_snippet'] = updated_code
-                
-                print("Updated code snippet with new options")
-                print(f"Options: {options}")
+                updated_code = replace_dropdown_placeholder(snippet['original_code'], options)
+                # Save the rendered code to the database
+                update_rendered_code(snippet_id, updated_code)
+                return redirect(url_for('view_snippet', snippet_id=snippet_id))
             else:
-                rendered_code = code_snippet
-                updated_code = code_snippet
-            
-            return render_template('index.html',
-                                 code_snippet=updated_code,  # Show updated code in input area
-                                 rendered_code=rendered_code,
-                                 current_date=datetime.now().strftime('%Y-%m-%d'))
+                return redirect(url_for('view_snippet', snippet_id=snippet_id))
         
         elif action == 'skip_options':
-            code_snippet = session.get('code_snippet', '')
-            return render_template('index.html',
-                                 code_snippet=code_snippet,
-                                 rendered_code=code_snippet,
-                                 current_date=datetime.now().strftime('%Y-%m-%d'))
+            return redirect(url_for('view_snippet', snippet_id=snippet_id))
     
-    # GET request - show initial form
-    return render_template('index.html', current_date=datetime.now().strftime('%Y-%m-%d'))
+    return render_template('index.html',
+                         snippet_id=snippet_id,
+                         code_snippet=snippet['original_code'],
+                         has_dropdowns=True,
+                         show_options_form=True,
+                         dropdown_options=options,
+                         dropdown_detected_message="Dropdown detected",
+                         current_date=datetime.now().strftime('%Y-%m-%d'))
 
 if __name__ == '__main__':
     import os
