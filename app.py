@@ -1,4 +1,5 @@
-from flask import Flask, render_template, request, session, redirect, url_for
+from flask import Flask, render_template, request, session, redirect, url_for, jsonify
+from flask_cors import CORS
 from datetime import datetime
 import re
 import json
@@ -8,6 +9,8 @@ import uuid
 
 
 app = Flask(__name__)
+# Enable CORS for all domains on all routes
+CORS(app, supports_credentials=True)
 app.secret_key = 'your-secret-key-here'  # Change this in production
 
 # Database setup
@@ -267,18 +270,115 @@ def update_rendered_code(snippet_id, rendered_code):
 @app.route('/', methods=['GET'])
 def index():
     """Show the initial form"""
+    # For JSON requests, return API info
+    if request.is_json or request.headers.get('Accept') == 'application/json':
+        return jsonify({
+            'api_version': '1.0',
+            'description': 'Code Snippet Dropdown Manager API',
+            'endpoints': {
+                'analyze': '/analyze (POST)',
+                'view_snippet': '/snippet/<snippet_id> (GET)',
+                'configure_options': '/snippet/<snippet_id>/options (GET, POST)',
+                'api_docs': '/api/docs (GET)'
+            }
+        })
     return render_template('index.html', current_date=datetime.now().strftime('%Y-%m-%d'))
+
+@app.route('/api/docs', methods=['GET'])
+def api_docs():
+    """API documentation endpoint"""
+    docs = {
+        'api_version': '1.0',
+        'description': 'Code Snippet Dropdown Manager API',
+        'endpoints': [
+            {
+                'path': '/analyze',
+                'method': 'POST',
+                'description': 'Analyze a code snippet for dropdowns',
+                'request_body': {
+                    'code': 'The code snippet to analyze'
+                },
+                'response': {
+                    'snippet_id': 'The ID of the saved snippet',
+                    'has_dropdowns': 'Boolean indicating if dropdowns were detected',
+                    'next_url': 'URL to configure options or view the snippet'
+                }
+            },
+            {
+                'path': '/snippet/<snippet_id>',
+                'method': 'GET',
+                'description': 'View a snippet',
+                'response': {
+                    'snippet_id': 'The ID of the snippet',
+                    'original_code': 'The original code snippet',
+                    'rendered_code': 'The rendered code with dropdown options applied',
+                    'has_dropdowns': 'Boolean indicating if dropdowns were detected',
+                    'options': 'Array of dropdown options',
+                    'created_at': 'Timestamp when the snippet was created'
+                }
+            },
+            {
+                'path': '/snippet/<snippet_id>/options',
+                'method': 'GET',
+                'description': 'Get dropdown options for a snippet',
+                'response': {
+                    'snippet_id': 'The ID of the snippet',
+                    'options': 'Array of dropdown options',
+                    'original_code': 'The original code snippet'
+                }
+            },
+            {
+                'path': '/snippet/<snippet_id>/options',
+                'method': 'POST',
+                'description': 'Configure dropdown options for a snippet',
+                'request_body': {
+                    'action': 'The action to perform (add_option, remove_option, submit_options, skip_options)',
+                    'new_option': 'The option to add (for add_option action)',
+                    'option_to_remove': 'The option to remove (for remove_option action)'
+                },
+                'response': {
+                    'snippet_id': 'The ID of the snippet',
+                    'options': 'Array of dropdown options',
+                    'message': 'A message describing the result of the action',
+                    'rendered_code': 'The rendered code with dropdown options applied (for submit_options action)',
+                    'view_url': 'URL to view the snippet (for submit_options and skip_options actions)'
+                }
+            }
+        ],
+        'example_usage': {
+            'analyze': {
+                'curl': 'curl -X POST -H "Content-Type: application/json" -d \'{"code": "<your code snippet>"}\' http://localhost:5000/analyze',
+                'javascript': 'fetch("http://localhost:5000/analyze", {\n  method: "POST",\n  headers: {\n    "Content-Type": "application/json"\n  },\n  body: JSON.stringify({\n    code: "<your code snippet>"\n  })\n}).then(response => response.json()).then(data => console.log(data));'
+            }
+        }
+    }
+    
+    return jsonify(docs)
 
 @app.route('/analyze', methods=['POST'])
 def analyze_code():
     """Analyze a code snippet for dropdowns"""
-    code_snippet = request.form.get('code', '')
+    # Check if the request is JSON or form data
+    if request.is_json:
+        data = request.get_json()
+        code_snippet = data.get('code', '')
+    else:
+        code_snippet = request.form.get('code', '')
     
     has_dropdowns = detect_dropdowns(code_snippet)
     
     # Save the snippet to the database
     snippet_id = save_snippet(code_snippet, has_dropdowns)
     
+    # If it's a JSON request, return JSON response
+    if request.is_json:
+        return jsonify({
+            'snippet_id': snippet_id,
+            'has_dropdowns': has_dropdowns,
+            'next_url': url_for('configure_options', snippet_id=snippet_id) if has_dropdowns else url_for('view_snippet', snippet_id=snippet_id)
+        })
+    
+    # Otherwise, redirect as usual for form submissions
     if has_dropdowns:
         print("Dropdown detected")  # Output to console as requested
         return redirect(url_for('configure_options', snippet_id=snippet_id))
@@ -292,8 +392,20 @@ def view_snippet(snippet_id):
     snippet, options = get_snippet(snippet_id)
     
     if not snippet:
-        return "Snippet not found", 404
+        return jsonify({"error": "Snippet not found"}), 404 if request.is_json else ("Snippet not found", 404)
     
+    # For JSON requests, return the snippet data
+    if request.is_json or request.headers.get('Accept') == 'application/json':
+        return jsonify({
+            'snippet_id': snippet_id,
+            'original_code': snippet['original_code'],
+            'rendered_code': snippet['rendered_code'] or snippet['original_code'],
+            'has_dropdowns': snippet['has_dropdowns'],
+            'options': options,
+            'created_at': snippet['created_at']
+        })
+    
+    # For HTML requests, render the template
     return render_template('index.html',
                          snippet_id=snippet_id,
                          code_snippet=snippet['original_code'],
@@ -306,39 +418,108 @@ def configure_options(snippet_id):
     snippet, options = get_snippet(snippet_id)
     
     if not snippet:
-        return "Snippet not found", 404
+        return jsonify({"error": "Snippet not found"}), 404 if request.is_json else ("Snippet not found", 404)
+    
+    # For JSON GET requests, return the current options
+    if request.method == 'GET' and request.is_json:
+        return jsonify({
+            'snippet_id': snippet_id,
+            'options': options,
+            'original_code': snippet['original_code']
+        })
     
     if request.method == 'POST':
-        action = request.form.get('action', '')
-        
-        if action == 'add_option':
-            new_option = request.form.get('new_option', '').strip()
-            if new_option and new_option not in options:
-                save_dropdown_option(snippet_id, new_option)
-                options.append(new_option)
-        
-        elif action == 'remove_option':
-            option_to_remove = request.form.get('option_to_remove', '')
-            if option_to_remove in options:
-                remove_dropdown_option(snippet_id, option_to_remove)
-                options.remove(option_to_remove)
-        
-        elif action == 'submit_options':
-            # Get the latest options
-            options = get_dropdown_options(snippet_id)
+        # Handle JSON requests
+        if request.is_json:
+            data = request.get_json()
+            action = data.get('action', '')
             
-            if options:
-                # Update the code snippet with the new options
-                updated_code = replace_dropdown_placeholder(snippet['original_code'], options)
-                # Save the rendered code to the database
-                update_rendered_code(snippet_id, updated_code)
-                return redirect(url_for('view_snippet', snippet_id=snippet_id))
-            else:
-                return redirect(url_for('view_snippet', snippet_id=snippet_id))
+            if action == 'add_option':
+                new_option = data.get('new_option', '').strip()
+                if new_option and new_option not in options:
+                    save_dropdown_option(snippet_id, new_option)
+                    options.append(new_option)
+                return jsonify({
+                    'snippet_id': snippet_id,
+                    'options': options,
+                    'message': f"Option '{new_option}' added successfully"
+                })
+            
+            elif action == 'remove_option':
+                option_to_remove = data.get('option_to_remove', '')
+                if option_to_remove in options:
+                    remove_dropdown_option(snippet_id, option_to_remove)
+                    options.remove(option_to_remove)
+                return jsonify({
+                    'snippet_id': snippet_id,
+                    'options': options,
+                    'message': f"Option '{option_to_remove}' removed successfully"
+                })
+            
+            elif action == 'submit_options':
+                # Get the latest options
+                options = get_dropdown_options(snippet_id)
+                
+                if options:
+                    # Update the code snippet with the new options
+                    updated_code = replace_dropdown_placeholder(snippet['original_code'], options)
+                    # Save the rendered code to the database
+                    update_rendered_code(snippet_id, updated_code)
+                    return jsonify({
+                        'snippet_id': snippet_id,
+                        'rendered_code': updated_code,
+                        'message': "Options applied successfully",
+                        'view_url': url_for('view_snippet', snippet_id=snippet_id)
+                    })
+                else:
+                    return jsonify({
+                        'snippet_id': snippet_id,
+                        'rendered_code': snippet['original_code'],
+                        'message': "No options to apply",
+                        'view_url': url_for('view_snippet', snippet_id=snippet_id)
+                    })
+            
+            elif action == 'skip_options':
+                return jsonify({
+                    'snippet_id': snippet_id,
+                    'rendered_code': snippet['original_code'],
+                    'message': "Options skipped",
+                    'view_url': url_for('view_snippet', snippet_id=snippet_id)
+                })
         
-        elif action == 'skip_options':
-            return redirect(url_for('view_snippet', snippet_id=snippet_id))
+        # Handle form submissions
+        else:
+            action = request.form.get('action', '')
+            
+            if action == 'add_option':
+                new_option = request.form.get('new_option', '').strip()
+                if new_option and new_option not in options:
+                    save_dropdown_option(snippet_id, new_option)
+                    options.append(new_option)
+            
+            elif action == 'remove_option':
+                option_to_remove = request.form.get('option_to_remove', '')
+                if option_to_remove in options:
+                    remove_dropdown_option(snippet_id, option_to_remove)
+                    options.remove(option_to_remove)
+            
+            elif action == 'submit_options':
+                # Get the latest options
+                options = get_dropdown_options(snippet_id)
+                
+                if options:
+                    # Update the code snippet with the new options
+                    updated_code = replace_dropdown_placeholder(snippet['original_code'], options)
+                    # Save the rendered code to the database
+                    update_rendered_code(snippet_id, updated_code)
+                    return redirect(url_for('view_snippet', snippet_id=snippet_id))
+                else:
+                    return redirect(url_for('view_snippet', snippet_id=snippet_id))
+            
+            elif action == 'skip_options':
+                return redirect(url_for('view_snippet', snippet_id=snippet_id))
     
+    # For HTML requests, render the template
     return render_template('index.html',
                          snippet_id=snippet_id,
                          code_snippet=snippet['original_code'],
@@ -352,4 +533,3 @@ if __name__ == '__main__':
     import os
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=False)
-
