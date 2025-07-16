@@ -10,7 +10,8 @@ import uuid
 
 app = Flask(__name__)
 # Enable CORS for all domains on all routes
-CORS(app, supports_credentials=True)
+CORS(app, supports_credentials=True, origins=["https://jpmcdemoinstance.my.connect.aws/",
+"http://10.4.232.219:5000/","https://rmc6zmgi3p.us-east-1.awsapprunner.com/"])
 app.secret_key = 'your-secret-key-here'  # Change this in production
 
 # Database setup
