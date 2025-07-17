@@ -267,6 +267,27 @@ def update_rendered_code(snippet_id, rendered_code):
     conn.commit()
     conn.close()
 
+@app.route('/health', methods=['GET'])
+def health_check():
+    """Health check endpoint for AWS App Runner"""
+    try:
+        # Test database connection
+        conn = get_db_connection()
+        conn.execute('SELECT 1').fetchone()
+        conn.close()
+        
+        return jsonify({
+            'status': 'healthy',
+            'message': 'Application is running correctly',
+            'timestamp': datetime.now().isoformat()
+        }), 200
+    except Exception as e:
+        return jsonify({
+            'status': 'unhealthy',
+            'message': f'Health check failed: {str(e)}',
+            'timestamp': datetime.now().isoformat()
+        }), 500
+
 @app.route('/', methods=['GET'])
 def index():
     """Show the initial form"""
@@ -279,7 +300,8 @@ def index():
                 'analyze': '/analyze (POST)',
                 'view_snippet': '/snippet/<snippet_id> (GET)',
                 'configure_options': '/snippet/<snippet_id>/options (GET, POST)',
-                'api_docs': '/api/docs (GET)'
+                'api_docs': '/api/docs (GET)',
+                'health': '/health (GET)'
             }
         })
     return render_template('index.html', current_date=datetime.now().strftime('%Y-%m-%d'))
