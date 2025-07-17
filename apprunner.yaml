@@ -7,9 +7,9 @@ build:
       - pip install gunicorn
 run:
   runtime-version: 3.8
-  command: gunicorn --bind 0.0.0.0:8080 app:app
+  command: gunicorn --bind 0.0.0.0:5000 app:app
   network:
-    port: 8080
+    port: 5000
     env: PORT
   healthcheck:
     path: '/health'
