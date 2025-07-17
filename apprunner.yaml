@@ -11,9 +11,3 @@ run:
   network:
     port: 5000
     env: PORT
-  healthcheck:
-    path: '/health'
-    interval: 10
-    timeout: 5
-    healthy_threshold: 2
-    unhealthy_threshold: 3
