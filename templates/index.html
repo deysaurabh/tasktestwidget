@@ -8,11 +8,43 @@
     <div class="code-input-section">
         <h2>Enter Code Snippet</h2>
         
-        {% if not code_snippet %}
+        {% if show_final_view %}
+        <!-- Show new code input form after rendering -->
+        <div class="new-snippet-section">
+            <h3>Enter New Code Snippet</h3>
+            <form method="POST" action="{{ url_for('analyze_code') }}">
+                <textarea name="code" placeholder="Enter your code snippet here... Use {{dropdown}}, [dropdown], or <select> tags for dropdowns" rows="10" cols="80"></textarea><br>
+                <div class="button-group">
+                    <button type="submit">Analyze New Code</button>
+                    <form method="POST" action="{{ url_for('analyze_code') }}" style="display: inline;">
+                        <input type="hidden" name="code" value="{{ previous_code_snippet }}">
+                        <button type="submit" class="secondary-btn">Re-analyze Previous Code</button>
+                    </form>
+                    <form method="POST" action="{{ url_for('reset_app') }}" style="display: inline;">
+                        <button type="submit" class="reset-btn">Reset App</button>
+                    </form>
+                </div>
+            </form>
+        </div>
+        
+        {% elif not code_snippet %}
         <!-- Initial code input form -->
         <form method="POST" action="{{ url_for('analyze_code') }}">
             <textarea name="code" placeholder="Enter your code snippet here... Use {{dropdown}}, [dropdown], or <select> tags for dropdowns" rows="10" cols="80"></textarea><br>
+            {% if previous_code_snippet %}
+            <div class="button-group">
+                <button type="submit">Analyze Code</button>
+                <form method="POST" action="{{ url_for('analyze_code') }}" style="display: inline;">
+                    <input type="hidden" name="code" value="{{ previous_code_snippet }}">
+                    <button type="submit" class="secondary-btn">Re-analyze Previous Code</button>
+                </form>
+                <form method="POST" action="{{ url_for('reset_app') }}" style="display: inline;">
+                    <button type="submit" class="reset-btn">Reset App</button>
+                </form>
+            </div>
+            {% else %}
             <button type="submit">Analyze Code</button>
+            {% endif %}
         </form>
         
         {% elif show_options_form %}
@@ -67,7 +99,7 @@
         </div>
         
         {% else %}
-        <!-- Show code for reference -->
+        <!-- Show code for reference (fallback case) -->
         <div class="code-reference">
             <h3>Code Snippet:</h3>
             <div class="code-preview">{{ code_snippet }}</div>

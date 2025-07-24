@@ -225,3 +225,62 @@ button:hover {
     box-sizing: border-box;
     height: 30px;
 }
+/* Ne
+w snippet section styling */
+.new-snippet-section {
+    background-color: #f8f9fa;
+    padding: 20px;
+    border-radius: 8px;
+    margin: 20px 0;
+    border: 2px solid #28a745;
+}
+
+.new-snippet-section h3 {
+    color: #28a745;
+    margin-top: 0;
+}
+
+.previous-code-reference {
+    margin-top: 20px;
+    padding: 15px;
+    background-color: #e9ecef;
+    border-radius: 4px;
+    border-left: 4px solid #6c757d;
+}
+
+.previous-code-reference h4 {
+    color: #6c757d;
+    margin-top: 0;
+    font-size: 14px;
+}
+
+.button-group {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    margin-top: 10px;
+}
+
+.button-group button {
+    height: 40px;
+    padding: 10px 20px;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.secondary-btn {
+    background-color: #6c757d;
+}
+
+.secondary-btn:hover {
+    background-color: #5a6268;
+}.re
+set-btn {
+    background-color: #dc3545;
+}
+
+.reset-btn:hover {
+    background-color: #c82333;
+}

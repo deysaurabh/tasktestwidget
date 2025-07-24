@@ -267,6 +267,12 @@ def update_rendered_code(snippet_id, rendered_code):
     conn.commit()
     conn.close()
 
+@app.route('/reset', methods=['POST'])
+def reset_app():
+    """Reset the app to initial state by clearing session"""
+    session.clear()
+    return redirect(url_for('index'))
+
 @app.route('/health', methods=['GET'])
 def health_check():
     """Health check endpoint for AWS App Runner"""
@@ -304,7 +310,13 @@ def index():
                 'health': '/health (GET)'
             }
         })
-    return render_template('index.html', current_date=datetime.now().strftime('%Y-%m-%d'))
+    
+    # Get the last code snippet from session for the re-analyze button
+    last_code_snippet = session.get('last_code_snippet', '')
+    
+    return render_template('index.html', 
+                         current_date=datetime.now().strftime('%Y-%m-%d'),
+                         previous_code_snippet=last_code_snippet)
 
 @app.route('/api/docs', methods=['GET'])
 def api_docs():
@@ -387,10 +399,15 @@ def analyze_code():
     else:
         code_snippet = request.form.get('code', '')
     
+    # Store the current code snippet in session for re-analysis
+    session['last_code_snippet'] = code_snippet
+    
     has_dropdowns = detect_dropdowns(code_snippet)
     
     # Save the snippet to the database
-    snippet_id = save_snippet(code_snippet, has_dropdowns)
+    # If no dropdowns detected, set rendered_code to the original code
+    rendered_code = code_snippet if not has_dropdowns else None
+    snippet_id = save_snippet(code_snippet, has_dropdowns, rendered_code)
     
     # If it's a JSON request, return JSON response
     if request.is_json:
@@ -428,10 +445,17 @@ def view_snippet(snippet_id):
         })
     
     # For HTML requests, render the template
+    # Ensure rendered_code is always available for display
+    rendered_code = snippet['rendered_code'] if snippet['rendered_code'] else snippet['original_code']
+    
+    # Store this snippet as the last analyzed code in session
+    session['last_code_snippet'] = snippet['original_code']
+    
     return render_template('index.html',
                          snippet_id=snippet_id,
-                         code_snippet=snippet['original_code'],
-                         rendered_code=snippet['rendered_code'] or snippet['original_code'],
+                         previous_code_snippet=snippet['original_code'],  # Store original for reference
+                         rendered_code=rendered_code,
+                         show_final_view=True,  # Flag to show fresh input form
                          current_date=datetime.now().strftime('%Y-%m-%d'))
 
 @app.route('/snippet/<snippet_id>/options', methods=['GET', 'POST'])
@@ -539,6 +563,8 @@ def configure_options(snippet_id):
                     return redirect(url_for('view_snippet', snippet_id=snippet_id))
             
             elif action == 'skip_options':
+                # Save the original code as rendered code when skipping options
+                update_rendered_code(snippet_id, snippet['original_code'])
                 return redirect(url_for('view_snippet', snippet_id=snippet_id))
     
     # For HTML requests, render the template
